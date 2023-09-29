@@ -1,0 +1,7 @@
+s{ t{i{i1} d{s0}}  n{s0} t{i{i0} d{s1}}}
+i{s0}
+s{ t{i{i1} d{s2}} n{s1} t{i{i0} d{s3}} }
+s{n{s2} t{i{i0} d{s0}}}
+s{n{s3}}
+a{s3}
+
