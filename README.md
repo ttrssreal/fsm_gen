@@ -25,5 +25,6 @@ Parse a spec file conforming roughly to the following CFG and emmit C++ source c
 <inp_block> ::= "i{" <token> "}"
 <dst_block> ::= "d{" <state_name> "}"
 
-<state_contents> ::= ( <trans_block> | <name_block> )+
+<state_contents> ::= <name_block> <state_contents_right> | <trans_block> <state_contents>
+<state_contents_right> ::= <trans_block> <state_contents_right> | ""
 ```

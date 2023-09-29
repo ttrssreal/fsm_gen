@@ -166,6 +166,71 @@ fsm_err_t _fsm_parse_st__grow_tr_list(struct fsm_st* st) {
 	return 0;
 }
 
+fsm_err_t _fsm_parse__state_contents_right(struct fsm *fsm, struct fsm_lexer *lexer, struct fsm_st*& active_st) {
+	struct fsm_lexer_tkn tkn;
+	fsm_lexer_peek_tkn(lexer, &tkn);
+
+	if (tkn.type == FSM_TRANS) {
+		if (active_st->tr_count >= active_st->tr_cap)
+			_fsm_parse_st__grow_tr_list(active_st);
+
+		fsm_tr* tr = &active_st->tr_list[active_st->tr_count++];
+
+		_fsm_parse__trans_block(fsm, lexer, tr);
+
+		_fsm_parse__state_contents_right(fsm, lexer, active_st);
+	}
+
+	return 0;
+}
+
+fsm_err_t _fsm_parse__state_contents_inner(struct fsm* fsm, struct fsm_lexer* lexer, struct fsm_st*& active_st) {
+	struct fsm_lexer_tkn tkn;
+	fsm_lexer_peek_tkn(lexer, &tkn);
+
+	switch (tkn.type) {
+		// as soon as we see a name, we resolve the state to an array member
+		case FSM_NAME: {
+			fsm_err_t err = _fsm_parse__name_block(fsm, lexer, active_st);
+			if (err < 0)
+				return err;
+
+			size_t st_idx;
+			_fsm_parse_reslv_st_idx(fsm, active_st->name, &st_idx);
+			fsm_st* st = &fsm->st_list[st_idx];
+
+			// populate it with the state weve been building
+			st->tr_count = active_st->tr_count;
+			st->tr_cap = active_st->tr_cap;
+			st->tr_list = active_st->tr_list;
+
+			// swap the state ptr to the new state
+			active_st = st;
+
+			_fsm_parse__state_contents_right(fsm, lexer, active_st);
+			break;
+		}
+		case FSM_TRANS: {
+			if (active_st->tr_count >= active_st->tr_cap)
+				_fsm_parse_st__grow_tr_list(active_st);
+
+			fsm_tr* tr = &active_st->tr_list[active_st->tr_count++];
+
+			fsm_err_t err = _fsm_parse__trans_block(fsm, lexer, tr);
+			if (err < 0)
+				return err;
+
+			_fsm_parse__state_contents_inner(fsm, lexer, active_st);
+			break;
+		}
+		default: {
+			fprintf(stderr, "Error: expected state contents\n");
+			return -ERR_PARSE;
+		}
+	}
+	return 0;
+}
+
 fsm_err_t _fsm_parse__state_contents(struct fsm* fsm, struct fsm_lexer* lexer) {
 	struct fsm_st tmp_st;
 
@@ -173,55 +238,9 @@ fsm_err_t _fsm_parse__state_contents(struct fsm* fsm, struct fsm_lexer* lexer) {
 	tmp_st.tr_cap = _PARSER_INIT_ST_TR_COUNT;
 	tmp_st.tr_list = (fsm_tr*)malloc(sizeof(fsm_tr) * tmp_st.tr_cap);
 
-	struct fsm_st* st_ptr = &tmp_st;
+	struct fsm_st* active_st = &tmp_st;
 
-	struct fsm_st** active_st = &st_ptr;
-
-	struct fsm_lexer_tkn tkn;
-	fsm_lexer_peek_tkn(lexer, &tkn);
-
-	while (tkn.type == FSM_NAME || tkn.type == FSM_TRANS) {
-		switch (tkn.type) {
-			// as soon as we see a name, we resolve the state to an array member
-			case FSM_NAME: {
-				fsm_err_t err = _fsm_parse__name_block(fsm, lexer, *active_st);
-				if (err < 0)
-					return err;
-
-				size_t st_idx;
-				_fsm_parse_reslv_st_idx(fsm, (*active_st)->name, &st_idx);
-				fsm_st* st = &fsm->st_list[st_idx];
-
-				// populate it with the state weve been building
-				st->tr_count = (*active_st)->tr_count;
-				st->tr_cap = (*active_st)->tr_cap;
-				st->tr_list = (*active_st)->tr_list;
-
-				// swap the state ptr to the new state
-				*active_st = st;
-
-				fsm_lexer_peek_tkn(lexer, &tkn);
-				continue;
-			}
-			case FSM_TRANS: {
-				if ((*active_st)->tr_count >= (*active_st)->tr_cap)
-					_fsm_parse_st__grow_tr_list(*active_st);
-	
-				fsm_tr* tr = &(*active_st)->tr_list[(*active_st)->tr_count++];
-	
-				fsm_err_t err = _fsm_parse__trans_block(fsm, lexer, tr);
-				if (err < 0)
-					return err;
-				fsm_lexer_peek_tkn(lexer, &tkn);
-				continue;
-			}
-			default: {
-				fprintf(stderr, "Error: expected state contents\n");
-				return -ERR_PARSE;
-			}
-		}
-		fsm_lexer_peek_tkn(lexer, &tkn);
-	}
+	_fsm_parse__state_contents_inner(fsm, lexer, active_st);
 	return 0;
 }
 
