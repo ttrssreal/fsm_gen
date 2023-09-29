@@ -1,0 +1,5 @@
+#include <iostream>
+using namespace std;
+string state;
+string input;
+int accept = 0;

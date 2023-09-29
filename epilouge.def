@@ -1,0 +1,7 @@
+while(1){
+   cout<<" state="<<state<<" enter signal"<<endl;
+   cin>>input;
+   int acc_st = Proc(input);
+   cout<<" new state="<<state<<", accepting="<<acc_st<<endl; // p
+ }
+}
